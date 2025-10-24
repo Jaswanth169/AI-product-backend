@@ -10,12 +10,19 @@ import traceback
 # Initialize Flask App
 # ------------------------------
 app = Flask(__name__)
-CORS(app)
+
+# ------------------------------
+# Configure CORS for your frontend
+# ------------------------------
+CORS(app, resources={r"/api/*": {"origins": "https://zealous-pond-0fc6e090f.3.azurestaticapps.net"}})
 
 # ------------------------------
 # Initialize NVIDIA OpenAI Client
 # ------------------------------
-api_key = os.environ.get('NVIDIA_API_KEY', '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')
+api_key = os.environ.get(
+    'NVIDIA_API_KEY', 
+    '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'
+)
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
     api_key=api_key
@@ -28,7 +35,7 @@ def load_agents_config():
     try:
         with open('agents_config.json', 'r') as f:
             config = json.load(f)
-        return config['domains']
+        return config.get('domains', {})
     except FileNotFoundError:
         print("ERROR: agents_config.json not found!")
         return {}
@@ -50,14 +57,17 @@ projects = {}
 @app.route('/api/domains', methods=['GET'])
 def get_domains():
     """Get all domains and their agents"""
-    return jsonify({"domains": DOMAINS})
+    return jsonify({"domains": DOMAINS}), 200
 
 @app.route('/api/project/create', methods=['POST'])
 def create_project():
     """Create a new project"""
     try:
         data = request.json
-        required_fields = ['product_name', 'product_description', 'product_features', 'target_price', 'budget', 'industry']
+        required_fields = [
+            'product_name', 'product_description', 'product_features', 
+            'target_price', 'budget', 'industry'
+        ]
 
         for field in required_fields:
             if field not in data:
@@ -76,8 +86,8 @@ def create_project():
             "agent_results": {}
         }
 
-        print(f"\nProject Created: {project_id} | Product: {data['product_name']} | Industry: {data['industry']}")
-        return jsonify({"project_id": project_id, "message": "Project created successfully"})
+        print(f"Project Created: {project_id} | Product: {data['product_name']} | Industry: {data['industry']}")
+        return jsonify({"project_id": project_id, "message": "Project created successfully"}), 200
 
     except Exception as e:
         print(f"ERROR: Error creating project: {str(e)}")
@@ -150,7 +160,7 @@ Task:
             stream=False
         )
 
-        result = completion.choices[0].message.content or "No response generated. Please try again."
+        result = completion.choices[0].message.content or "No response generated."
 
         projects[project_id]["agent_results"][agent_id] = {
             "agent_name": agent["name"],
@@ -166,7 +176,7 @@ Task:
             "result": result,
             "timestamp": datetime.now().isoformat(),
             "status": "completed"
-        })
+        }), 200
 
     except Exception as e:
         print(f"ERROR: Error running agent: {str(e)}")
@@ -178,7 +188,7 @@ def get_project(project_id):
     """Get project details and results"""
     if project_id not in projects:
         return jsonify({"error": "Project not found"}), 404
-    return jsonify(projects[project_id])
+    return jsonify(projects[project_id]), 200
 
 @app.route('/api/project/<project_id>/summary', methods=['GET'])
 def get_project_summary(project_id):
@@ -227,71 +237,12 @@ Provide a clear, actionable executive summary.
             "project_id": project_id,
             "summary": summary,
             "generated_at": datetime.now().isoformat()
-        })
+        }), 200
 
     except Exception as e:
         print(f"ERROR: Error generating summary: {str(e)}")
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
-@app.route('/api/project/<project_id>/recommendations', methods=['GET'])
-def get_agent_recommendations(project_id):
-    """Get AI recommendations for which agents to run based on product details"""
-    try:
-        if project_id not in projects:
-            return jsonify({"error": "Project not found"}), 404
-
-        project = projects[project_id]
-        features_str = ', '.join(project['product_features']) if isinstance(project['product_features'], list) else project['product_features']
-
-        recommendations = generate_smart_recommendations(project, features_str)
-
-        return jsonify({
-            "project_id": project_id,
-            "recommendations": recommendations,
-            "generated_at": datetime.now().isoformat()
-        })
-
-    except Exception as e:
-        print(f"ERROR: Error generating recommendations: {str(e)}")
-        traceback.print_exc()
-        features_str = ', '.join(project.get('product_features', [])) if isinstance(project.get('product_features', []), list) else project.get('product_features', '')
-        return jsonify({
-            "project_id": project_id,
-            "recommendations": generate_smart_recommendations(project, features_str),
-            "generated_at": datetime.now().isoformat()
-        })
-
-# ------------------------------
-# Helper function: Smart Recommendations
-# ------------------------------
-def generate_smart_recommendations(project, features_str):
-    product_name = project.get('product_name', 'your product')
-    industry = project.get('industry', 'the market')
-    target_price = project.get('target_price', 'N/A')
-    budget = project.get('budget', 'N/A')
-
-    return f"""# AI Agent Recommendations for {product_name}
-
-## Top Priority Agents
-1. Market Size Estimator: Validate market opportunity
-2. Competitive Landscape Analyzer: Identify competitors
-3. Customer Segmentation Analyst: Find target customers
-4. Price Point Optimizer: Optimize pricing
-5. Marketing Channel Strategist: Allocate marketing budget efficiently
-6. Value Proposition Architect: Craft core messaging
-7. Customer Persona Developer: Detailed buyer personas
-8. Demand Forecaster: Predict sales & inventory needs
-
-**Strategic Rationale:**  
-- Validate market first  
-- Understand competition  
-- Know your customers  
-- Optimize pricing and marketing spend  
-- Ensure consistent messaging
-
-**Pro Tip:** Start with the top 3-8 agents, review insights, then continue. Quality over quantity.
-"""
 
 # ------------------------------
 # Run Flask App
