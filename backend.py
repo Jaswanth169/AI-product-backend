@@ -19,10 +19,8 @@ CORS(app, resources={r"/api/*": {"origins": "https://zealous-pond-0fc6e090f.3.az
 # ------------------------------
 # Initialize NVIDIA OpenAI Client
 # ------------------------------
-api_key = os.environ.get(
-    'NVIDIA_API_KEY', 
-    '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'
-)
+api_key = os.environ['NVIDIA_API_KEY']
+
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
     api_key=api_key
